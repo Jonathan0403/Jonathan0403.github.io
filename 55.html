@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>購物網站</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background-color: #f5f5f5;
+    }
+    header {
+      background-color: #2c3e50;
+      color: white;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header input[type="text"] {
+      padding: 5px;
+      width: 250px;
+    }
+    nav {
+      background-color: #34495e;
+      padding: 10px;
+      text-align: center;
+    }
+    nav a {
+      color: white;
+      margin: 0 15px;
+      text-decoration: none;
+    }
+    .container {
+      display: flex;
+      padding: 20px;
+    }
+    .main-content {
+      flex: 3;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+    }
+    .product {
+      background-color: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    .product img {
+      width: 100%;
+      height: auto;
+      border-radius: 5px;
+    }
+    .product button {
+      background-color: #27ae60;
+      color: white;
+      padding: 8px 15px;
+      border: none;
+      border-radius: 5px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+    .sidebar {
+      flex: 1;
+      margin-left: 20px;
+      background-color: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+      height: fit-content;
+    }
+    footer {
+      background-color: #2c3e50;
+      color: white;
+      text-align: center;
+      padding: 15px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 頁首 -->
+  <header>
+    <h1>線上購物商城</h1>
+    <input type="text" placeholder="搜尋商品..." />
+  </header>
+
+  <!-- 導航列 -->
+  <nav>
+    <a href="#">男裝</a>
+    <a href="#">女裝</a>
+    <a href="#">電子產品</a>
+    <a href="#">家居用品</a>
+    <a href="#">特價商品</a>
+  </nav>
+
+  <!-- 主內容與側邊欄 -->
+  <div class="container">
+    <!-- 商品展示區 -->
+    <div class="main-content">
+      <div class="product">
+        <img src="https://via.placeholder.com/200x200" alt="商品1" />
+        <h3>商品名稱 1</h3>
+        <p>NT$ 1,000</p>
+        <button>加入購物車</button>
+      </div>
+      <div class="product">
+        <img src="https://via.placeholder.com/200x200" alt="商品2" />
+        <h3>商品名稱 2</h3>
+        <p>NT$ 2,500</p>
+        <button>加入購物車</button>
+      </div>
+      <div class="product">
+        <img src="https://via.placeholder.com/200x200" alt="商品3" />
+        <h3>商品名稱 3</h3>
+        <p>NT$ 780</p>
+        <button>加入購物車</button>
+      </div>
+      <!-- 可新增更多商品 -->
+    </div>
+
+    <!-- 側邊欄：購物車 -->
+    <div class="sidebar">
+      <h3>🛒 購物車</h3>
+      <p>商品1 x 1 - NT$1,000</p>
+      <p>商品2 x 2 - NT$5,000</p>
+      <hr>
+      <p><strong>總計：NT$6,000</strong></p>
+      <button>前往結帳</button>
+    </div>
+  </div>
+
+  <!-- 頁尾 -->
+  <footer>
+    <p>&copy; 2025 購物網站. 版權所有 | 聯絡我們：service@example.com</p>
+  </footer>
+
+</body>
+</html>
