@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Film Archive | 底片商城 - 整合頁面</title>
+    
+    <style>
+        /* 基本重置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: '微軟正黑體', 'Arial', sans-serif;
+        }
+
+        body {
+            line-height: 1.6;
+            color: #333;
+            background-color: #f8f8f8; /* 稍微偏灰的背景色 */
+        }
+
+        a {
+            text-decoration: none;
+            color: #007bff; /* 主色調：藍色 */
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        /* --- Header (導航欄) --- */
+        header {
+            background-color: #fff;
+            padding: 15px 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: sticky; 
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #333;
+            letter-spacing: 1px;
+        }
+
+        nav ul {
+            display: flex;
+        }
+
+        nav ul li a {
+            color: #555;
+            padding: 10px 15px;
+            display: block;
+            transition: color 0.3s, background-color 0.3s;
+        }
+
+        nav ul li a:hover {
+            color: #007bff;
+            background-color: #f4f4f4;
+        }
+
+        .utility-nav a {
+            margin-left: 20px;
+            font-size: 0.9em;
+            color: #555;
+        }
+
+        /* --- Hero Section (主視覺) --- */
+        .hero {
+            /* 請替換成您的底片背景圖 */
+            background: url('hero_background.jpg') no-repeat center center/cover;
+            color: #fff;
+            text-align: center;
+            padding: 120px 20px;
+            background-color: #333; 
+        }
+
+        .hero h1 {
+            font-size: 3.5em;
+            margin-bottom: 10px;
+            text-shadow: 1px 1px 4px rgba(0,0,0,0.7);
+        }
+
+        .hero p {
+            font-size: 1.3em;
+            margin-bottom: 30px;
+        }
+
+        /* --- 按鈕樣式 --- */
+        .button-primary, .button-secondary {
+            display: inline-block;
+            padding: 10px 25px;
+            border-radius: 5px;
+            text-transform: uppercase;
+            font-weight: bold;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        .button-primary {
+            background-color: #007bff;
+            color: #fff;
+        }
+
+        .button-primary:hover {
+            background-color: #0056b3;
+            transform: translateY(-2px);
+        }
+
+        .button-secondary {
+            background-color: #e0e0e0;
+            color: #333;
+            border: 1px solid #ccc;
+            text-transform: none; 
+            font-weight: normal;
+            padding: 8px 15px;
+        }
+
+        .button-secondary:hover {
+            background-color: #ccc;
+        }
+
+
+        /* --- Sections (區塊共用樣式) --- */
+        .section-padding {
+            padding: 60px 5%;
+            text-align: center;
+        }
+        
+        /* 移除 product-card 的寬度設定，讓它更通用 */
+        .product-card {
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border-radius: 8px;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+
+        .product-card:hover {
+            transform: translateY(-5px); 
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        .product-card img {
+            width: 100%;
+            height: auto;
+            max-height: 250px; 
+            object-fit: contain; 
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .product-card h3 {
+            font-size: 1.3em;
+            margin-bottom: 5px;
+            color: #222;
+        }
+
+        .product-card p {
+            color: #b12704; 
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        /* --- Products 頁面樣式 (用於 section#products) --- */
+        #products {
+            padding: 40px 5%;
+        }
+
+        .products-page-layout {
+            display: flex;
+            align-items: start; /* 確保側邊欄從頂部開始 */
+        }
+        
+        .sidebar {
+            width: 20%;
+            padding-right: 30px;
+            text-align: left;
+            position: sticky;
+            top: 100px; /* 固定在導航欄下方 */
+        }
+        
+        .main-content {
+            width: 80%;
+        }
+        
+        .sidebar h2 {
+            font-size: 1.8em;
+            margin-bottom: 20px;
+        }
+        
+        .sidebar h3 {
+            margin-top: 20px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+            font-size: 1.1em;
+            color: #555;
+        }
+        
+        .sidebar ul li {
+            padding: 5px 0;
+        }
+        
+        .main-content h1 {
+             font-size: 2.2em;
+             margin-bottom: 30px;
+             text-align: left;
+        }
+        
+        /* 針對主商品列表的網格佈局 */
+        .main-content .product-grid {
+            justify-content: start;
+            gap: 15px;
+        }
+        
+        .main-content .product-card {
+            width: calc(25% - 15px); /* 讓它呈現四欄 */
+        }
+        
+        .sort-bar {
+            text-align: right; 
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+
+        /* --- Footer (頁腳) --- */
+        footer {
+            background-color: #222;
+            color: #ccc;
+            padding: 40px 5%;
+            font-size: 0.9em;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+
+        .footer-links h4 {
+            color: #fff;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+
+        .footer-links ul li a {
+            color: #ccc;
+            display: block;
+            padding: 5px 0;
+        }
+
+        .footer-links ul li a:hover {
+            color: #007bff;
+        }
+
+        .copyright {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">The Film Archive</div>
+        <nav>
+            <ul>
+                <li><a href="#home">首頁</a></li>
+                <li><a href="#products">底片 (Film)</a></li>
+                <li><a href="#">沖洗藥劑</a></li>
+                <li><a href="#">配件</a></li>
+                <li><a href="#">底片教室</a></li>
+                <li><a href="#">聯絡我們</a></li>
+            </ul>
+        </nav>
+        <div class="utility-nav">
+            <a href="#">登入/註冊</a>
+            <a href="#" class="cart">購物車 (0)</a>
+        </div>
+    </header>
+
+    <main id="home">
+        
+        <section class="hero">
+            <h1>探索底片的魅力</h1>
+            <p>最新底片、限量版、稀有款，一站購足。</p>
+            <a href="#products" class="button-primary">立即選購</a>
+        </section>
+
+        <section class="section-padding featured-products">
+            <h2>本月精選底片</h2>
+            <div class="product-grid">
+                <div class="product-card" style="width: calc(33.333% - 13.333px);">
+                    <img src="placeholder_film_1.jpg" alt="Kodak Gold 200">
+                    <h3>Kodak Gold 200</h3>
+                    <p>NT$ 350</p>
+                    <a href="#" class="button-secondary">加入購物車</a>
+                </div>
+                <div class="product-card" style="width: calc(33.333% - 13.333px);">
+                    <img src="placeholder_film_2.jpg" alt="Fujifilm PROVIA 100F">
+                    <h3>Fujifilm PROVIA 100F</h3>
+                    <p>NT$ 580</p>
+                    <a href="#" class="button-secondary">加入購物車</a>
+                </div>
+                <div class="product-card" style="width: calc(33.333% - 13.333px);">
+                    <img src="placeholder_film_3.jpg" alt="Ilford HP5 Plus">
+                    <h3>Ilford HP5 Plus</h3>
+                    <p>NT$ 280</p>
+                    <a href="#" class="button-secondary">加入購物車</a>
+                </div>
+            </div>
+        </section>
+        
+        <section class="section-padding story" style="background-color: #e0e0e0;">
+            <h2>為什麼選擇底片？</h2>
+            <p>底片提供獨特的色彩、顆粒感和無法取代的拍攝體驗。我們致力於將最好的底片帶給您。</p>
+            <a href="#" class="button-primary">了解更多</a>
+        </section>
+        
+    </main>
+
+    <section id="products">
+        <div class="products-page-layout">
+            
+            <aside class="sidebar">
+                <h2>底片分類</h2>
+                <h3>片幅</h3>
+                <ul>
+                    <li><a href="#">135 (35mm)</a></li>
+                    <li><a href="#">120 (中片幅)</a></li>
+                    <li><a href="#">大畫幅</a></li>
+                </ul>
+                <h3>品牌</h3>
+                <ul>
+                    <li><a href="#">Kodak</a></li>
+                    <li><a href="#">Fujifilm</a></li>
+                    <li><a href="#">Ilford</a></li>
+                    <li><a href="#">Lomography</a></li>
+                </ul>
+                <h3>感光度 (ISO)</h3>
+                <ul>
+                    <li><a href="#">ISO 100以下</a></li>
+                    <li><a href="#">ISO 200~400</a></li>
+                    <li><a href="#">ISO 800以上</a></li>
+                </ul>
+            </aside>
+
+            <main class="main-content">
+                <h1>所有底片 (共 42 件商品)</h1>
+
+                <div class="sort-bar">
+                    排序方式: 
+                    <select>
+                        <option>最新上架</option>
+                        <option>價格由低到高</option>
+                        <option>價格由高到低</option>
+                    </select>
+                </div>
+
+                <div class="product-grid">
+                    <div class="product-card">
+                        <img src="placeholder_film_1.jpg" alt="Kodak Gold 200">
+                        <h3>Kodak Gold 200</h3>
+                        <p>NT$ 350</p>
+                        <a href="#" class="button-secondary">加入購物車</a>
+                    </div>
+                    <div class="product-card">
+                        <img src="placeholder_film_2.jpg" alt="Fujifilm PROVIA 100F">
+                        <h3>Fujifilm PROVIA 100F</h3>
+                        <p>NT$ 580</p>
+                        <a href="#" class="button-secondary">加入購物車</a>
+                    </div>
+                    <div class="product-card">
+                        <img src="placeholder_film_3.jpg" alt="Ilford HP5 Plus">
+                        <h3>Ilford HP5 Plus</h3>
+                        <p>NT$ 280</p>
+                        <a href="#" class="button-secondary">加入購物車</a>
+                    </div>
+                    <div class="product-card">
+                        <img src="placeholder_film_4.jpg" alt="CineStill 800T">
+                        <h3>CineStill 800T</h3>
+                        <p>NT$ 720</p>
+                        <a href="#" class="button-secondary">加入購物車</a>
+                    </div>
+                    <div class="product-card">
+                        <img src="placeholder_film_5.jpg" alt="Fomapan 100">
+                        <h3>Fomapan 100</h3>
+                        <p>NT$ 220</p>
+                        <a href="#" class="button-secondary">加入購物車</a>
+                    </div>
+                    <div class="product-card">
+                        <img src="placeholder_film_6.jpg" alt="Portra 400">
+                        <h3>Portra 400</h3>
+                        <p>NT$ 480</p>
+                        <a href="#" class="button-secondary">加入購物車</a>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-links">
+            <div>
+                <h4>客戶服務</h4>
+                <ul>
+                    <li><a href="#">運送政策</a></li>
+                    <li><a href="#">退換貨須知</a></li>
+                    <li><a href="#">常見問題</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4>關於我們</h4>
+                <ul>
+                    <li><a href="#">品牌故事</a></li>
+                    <li><a href="#">隱私權政策</a></li>
+                </ul>
+            </div>
+            <div class="social-media">
+                <h4>追蹤我們</h4>
+                <p>IG | FB | LINE</p>
+            </div>
+        </div>
+        <p class="copyright">&copy; 2025 The Film Archive. 版權所有.</p>
+    </footer>
+
+</body>
+</html>
