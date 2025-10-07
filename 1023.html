@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>底片購物網站 — FilmStore</title>
+  <style>
+    :root{--accent:#1f8dd6;--muted:#666;--bg:#f6f8fa;--card:#fff}
+    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    body{margin:0;background:var(--bg);color:#111}
+    header{background:linear-gradient(90deg,var(--accent),#3aa0d6);color:#fff;padding:18px 24px;display:flex;align-items:center;justify-content:space-between}
+    header h1{margin:0;font-size:18px}
+    .container{max-width:1100px;margin:24px auto;padding:0 16px}
+    .grid{display:grid;gap:16px}
+    .catalog{grid-template-columns:1fr 320px;}
+    .products{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+    .card{background:var(--card);border-radius:10px;padding:12px;box-shadow:0 6px 18px rgba(16,24,40,.06)}
+    .product img{width:100%;height:140px;object-fit:cover;border-radius:8px}
+    .product h3{margin:8px 0 4px;font-size:16px}
+    .muted{color:var(--muted);font-size:13px}
+    .price{font-weight:700;margin-top:6px}
+    .btn{display:inline-block;padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:#fff;cursor:pointer}
+    .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(31,141,214,.16)}
+    .cart{padding:12px}
+    .cart-item{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+    .cart-item img{width:56px;height:40px;object-fit:cover;border-radius:6px}
+    .admin-panel{display:flex;flex-direction:column;gap:8px}
+    input,select,textarea{padding:8px;border-radius:8px;border:1px solid #e6e9ee}
+    .small{font-size:13px}
+    footer{margin:36px 0;text-align:center;color:var(--muted)}
+    @media(max-width:900px){.catalog{grid-template-columns:1fr} .products{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>FilmStore — 底片 & 胶卷專賣</h1>
+    <div>
+      <button class="btn" id="open-cart">購物車 (<span id="cart-count">0</span>)</button>
+      <button class="btn ghost" id="open-admin">管理員</button>
+    </div>
+  </header>
+  <main class="container">
+    <section class="grid catalog">
+      <div>
+        <h2 style="margin-bottom:12px">商品總覽</h2>
+        <div class="products" id="products"></div>
+      </div>
+      <aside class="card" style="height:fit-content">
+        <div class="cart">
+          <h3>購物車</h3>
+          <div id="cart-list"></div>
+          <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+            <strong>總計: NT$ <span id="cart-total">0</span></strong>
+            <button class="btn" id="checkout">結帳</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+    <section style="margin-top:20px">
+      <div class="card">
+        <h3>進銷存紀錄</h3>
+        <div id="transactions" style="max-height:240px;overflow:auto;padding-top:8px"></div>
+      </div>
+    </section>
+    <div id="admin-modal" style="position:fixed;right:20px;top:80px;width:420px;display:none">
+      <div class="card admin-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3 style="margin:0">管理員面板</h3>
+          <button class="btn ghost" id="close-admin">關閉</button>
+        </div>
+        <div id="admin-login-area">
+          <input id="admin-pass" type="password" placeholder="管理密碼" />
+          <button class="btn" id="admin-login">登入</button>
+        </div>
+        <div id="admin-area" style="display:none">
+          <h4>庫存管理</h4>
+          <select id="stock-select"></select>
+          <input id="stock-qty" placeholder="調整數量 (+/-)" />
+          <button class="btn" id="adjust-stock">調整庫存</button>
+          <hr />
+          <h4>新增商品</h4>
+          <input id="p-title" placeholder="商品名稱" />
+          <input id="p-brand" placeholder="品牌" />
+          <input id="p-iso" placeholder="ISO" />
+          <input id="p-price" placeholder="價格" />
+          <input id="p-stock" placeholder="庫存" />
+          <button class="btn" id="add-product">新增商品</button>
+        </div>
+      </div>
+    </div>
+    <footer>此頁使用 localStorage 模擬後端功能。</footer>
+  </main>
+  <script>
+    const DEFAULT_PRODUCTS=[
+      {id:'kodak-portra-400',title:'Kodak Portra 400',brand:'Kodak',iso:400,price:980,stock:12},
+      {id:'fuji-superia-200',title:'Fuji Superia 200',brand:'Fuji',iso:200,price:220,stock:30},
+      {id:'ilford-hp5',title:'Ilford HP5 Plus 400',brand:'Ilford',iso:400,price:350,stock:8},
+      {id:'cinestill-800t',title:'CineStill 800T',brand:'CineStill',iso:800,price:620,stock:5},
+      {id:'kodak-gold-200',title:'Kodak Gold 200',brand:'Kodak',iso:200,price:250,stock:25},
+      {id:'fuji-c200',title:'Fuji C200',brand:'Fuji',iso:200,price:230,stock:20},
+      {id:'kodak-ultramax-400',title:'Kodak Ultramax 400',brand:'Kodak',iso:400,price:270,stock:15},
+      {id:'ilford-delta-100',title:'Ilford Delta 100',brand:'Ilford',iso:100,price:320,stock:10},
+      {id:'lomography-800',title:'Lomography Color 800',brand:'Lomography',iso:800,price:420,stock:6},
+      {id:'agfa-vista-200',title:'Agfa Vista 200',brand:'Agfa',iso:200,price:210,stock:18}
+    ];
+
+    const ADMIN_PASSWORD='admin123';
+    let DATA=JSON.parse(localStorage.getItem('filmstore:data')||'null')||{products:DEFAULT_PRODUCTS,transactions:[]};
+    let CART=[];
+
+    function save(){localStorage.setItem('filmstore:data',JSON.stringify(DATA));}
+
+    const productsEl=document.getElementById('products');
+    const cartList=document.getElementById('cart-list');
+    const cartCount=document.getElementById('cart-count');
+    const cartTotal=document.getElementById('cart-total');
+    const transactionsEl=document.getElementById('transactions');
+
+    function renderProducts(){
+      productsEl.innerHTML='';
+      DATA.products.forEach(p=>{
+        const card=document.createElement('div');card.className='card product';
+        card.innerHTML=`<img src='https://via.placeholder.com/400x300?text=${p.brand}+${p.iso}'/><h3>${p.title}</h3><div class='muted'>${p.brand} · ISO ${p.iso}</div><div class='price'>NT$ ${p.price}</div><div style='margin-top:8px;display:flex;justify-content:space-between'><div class='small muted'>庫存:${p.stock}</div><button class='btn' data-id='${p.id}' ${p.stock<=0?'disabled':''}>加入購物車</button></div>`;
+        productsEl.appendChild(card);
+      });
+    }
+
+    function renderCart(){
+      cartList.innerHTML='';
+      let total=0;
+      CART.forEach(item=>{
+        const p=DATA.products.find(x=>x.id===item.id);
+        const div=document.createElement('div');div.className='cart-item';
+        div.innerHTML=`<div style='flex:1'><strong>${p.title}</strong><div class='small muted'>NT$${p.price} x ${item.qty}</div></div><div>NT$ ${p.price*item.qty}</div>`;
+        cartList.appendChild(div);
+        total+=p.price*item.qty;
+      });
+      cartTotal.textContent=total;
+      cartCount.textContent=CART.reduce((s,i)=>s+i.qty,0);
+    }
+
+    document.addEventListener('click',e=>{
+      const btn=e.target.closest('button'); if(!btn)return;
+      if(btn.dataset.id){addToCart(btn.dataset.id);} 
+      if(btn.id==='checkout'){checkout();}
+      if(btn.id==='open-admin'){document.getElementById('admin-modal').style.display='block';}
+      if(btn.id==='close-admin'){document.getElementById('admin-modal').style.display='none';}
+      if(btn.id==='admin-login'){adminLogin();}
+      if(btn.id==='adjust-stock'){adjustStock();}
+      if(btn.id==='add-product'){addProduct();}
+    });
+
+    function addToCart(id){
+      const prod=DATA.products.find(p=>p.id===id);
+      const inCart=CART.find(i=>i.id===id);
+      if(prod.stock<=0)return alert('庫存不足');
+      if(inCart){inCart.qty++;}else{CART.push({id,qty:1});}
+      renderCart();
+    }
+
+    function checkout(){
+      CART.forEach(i=>{
+        const p=DATA.products.find(x=>x.id===i.id);
+        if(p.stock<i.qty)return alert('庫存不足: '+p.title);
+      });
+      CART.forEach(i=>{
+        const p=DATA.products.find(x=>x.id===i.id);
+        p.stock-=i.qty;
+        DATA.transactions.push({type:'sale',product:p.title,qty:i.qty,time:Date.now()});
+      });
+      CART=[];save();renderProducts();renderCart();renderTransactions();alert('結帳完成');
+    }
+
+    function renderTransactions(){
+      transactionsEl.innerHTML='';
+      DATA.transactions.slice().reverse().forEach(t=>{
+        const div=document.createElement('div');div.className='small';
+        div.textContent=`${new Date(t.time).toLocaleString()} - ${t.type==='sale'?'銷售':'庫存更改'}: ${t.product} (${t.qty})`;
+        transactionsEl.appendChild(div);
+      });
+    }
+
+    function adminLogin(){
+      const pass=document.getElementById('admin-pass').value;
+      if(pass===ADMIN_PASSWORD){
+        document.getElementById('admin-login-area').style.display='none';
+        document.getElementById('admin-area').style.display='block';
+        updateStockSelect();
+      }else alert('密碼錯誤');
+    }
+
+    function updateStockSelect(){
+      const sel=document.getElementById('stock-select');sel.innerHTML='';
+      DATA.products.forEach(p=>{
+        const opt=document.createElement('option');opt.value=p.id;opt.textContent=`${p.title} (庫存:${p.stock})`;sel.appendChild(opt);
+      });
+    }
+
+    function adjustStock(){
+      const sel=document.getElementById('stock-select').value;
+      const qty=parseInt(document.getElementById('stock-qty').value)||0;
+      const p=DATA.products.find(x=>x.id===sel);
+      if(!p)return;
+      p.stock+=qty;
+      DATA.transactions.push({type:'stock',product:p.title,qty:qty,time:Date.now()});
+      save();renderProducts();updateStockSelect();renderTransactions();alert('已更新庫存');
+    }
+
+    function addProduct(){
+      const title=document.getElementById('p-title').value;
+      const brand=document.getElementById('p-brand').value;
+      const iso=parseInt(document.getElementById('p-iso').value)||100;
+      const price=parseInt(document.getElementById('p-price').value)||0;
+      const stock=parseInt(document.getElementById('p-stock').value)||0;
+      const id=brand+'-'+iso+'-'+Math.random().toString(36).slice(2,8);
+      DATA.products.push({id,title,brand,iso,price,stock});save();renderProducts();updateStockSelect();alert('新增完成');
+    }
+
+    renderProducts();renderCart();renderTransactions();
+  </script>
+</body>
+</html>
