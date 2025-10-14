@@ -1,0 +1,276 @@
+import React, { useEffect, useState, useRef } from "react";
+
+/**
+ * 虛擬貨幣價格預測與風險預測 — React + Tailwind 版本
+ * 單檔元件 (可放入 Create React App / Vite 的 App.jsx)
+ * 功能：
+ * - 多幣別同圖比較 (CoinGecko)
+ * - 預測：線性回歸 + SMA / EMA 示範
+ * - 風險指標：年化波動率、最大回撤、Sharpe、95% VaR
+ * - 上傳 CSV / 匯出 CSV（歷史 + 預測）
+ * - 自動輪詢（模擬 WebSocket）與風險警示
+ * - Chart.js 圖表 (已在 package.json 加 chart.js, react-chartjs-2)
+ *
+ * 使用說明：
+ * - 將此檔放在 React 專案中（App.jsx 或獨立頁）
+ * - Tailwind 必須已設定；或自行移除 className 並改寫 CSS
+ */
+
+import { Line, Bar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend);
+
+export default function CryptoPredictor() {
+  const AVAILABLE = [
+    { id: 'bitcoin', label: 'Bitcoin (BTC)' },
+    { id: 'ethereum', label: 'Ethereum (ETH)' },
+    { id: 'litecoin', label: 'Litecoin (LTC)' },
+    { id: 'binancecoin', label: 'BNB' },
+  ];
+
+  const [selected, setSelected] = useState(['bitcoin']);
+  const [days, setDays] = useState(90);
+  const [forecastDays, setForecastDays] = useState(7);
+  const [method, setMethod] = useState('linreg');
+  const [dataStore, setDataStore] = useState({}); // { coin: {labels, prices} }
+  const [isLoading, setIsLoading] = useState(false);
+  const [metrics, setMetrics] = useState({});
+  const [alertMsg, setAlertMsg] = useState('');
+  const pollRef = useRef(null);
+  const [autoPoll, setAutoPoll] = useState(false);
+
+  useEffect(()=>{ return ()=>{ if(pollRef.current) clearInterval(pollRef.current); } },[]);
+
+  // --- math helpers ---
+  function computeLogReturns(prices){ const r=[]; for(let i=1;i<prices.length;i++){ r.push(Math.log(prices[i]/prices[i-1])); } return r }
+  function mean(arr){ return arr.reduce((s,v)=>s+v,0)/arr.length }
+  function std(arr){ const m = mean(arr); const s = Math.sqrt(arr.reduce((acc,x)=>acc + (x-m)*(x-m),0) / (arr.length-1 || 1)); return s }
+  function percentile(arr,p){ if(arr.length===0) return null; const s=[...arr].sort((a,b)=>a-b); const idx=(p/100)*(s.length-1); const lo=Math.floor(idx), hi=Math.ceil(idx); if(lo===hi) return s[lo]; return s[lo] + (s[hi]-s[lo])*(idx-lo); }
+  function maxDrawdown(prices){ let peak=prices[0], maxdd=0; for(const p of prices){ if(p>peak) peak=p; const dd = (p - peak)/peak; if(dd<maxdd) maxdd=dd; } return Math.abs(maxdd) }
+  function sharpeRatio(returns, rf=0){ const m = mean(returns); const s = std(returns); if(s===0) return 0; return (m - rf) / s * Math.sqrt(365); }
+
+  function SMA(prices, window){ const res = []; for(let i=0;i<prices.length;i++){ if(i+1<window) res.push(null); else{ const slice = prices.slice(i+1-window, i+1); res.push(slice.reduce((a,b)=>a+b,0)/window); } } return res }
+  function EMA(prices, window){ const res = []; const k = 2/(window+1); let prev = prices[0]; for(let i=0;i<prices.length;i++){ if(i===0) { res.push(prices[0]); prev = prices[0]; } else { const cur = prices[i]*k + prev*(1-k); res.push(cur); prev = cur; } } return res }
+
+  function linearRegression(x,y){ const n=x.length; if(n===0) return {a:0,b:0}; const xm = mean(x), ym = mean(y); let num=0,den=0; for(let i=0;i<n;i++){ num += (x[i]-xm)*(y[i]-ym); den += (x[i]-xm)*(x[i]-xm); } const b = den===0?0:num/den; const a = ym - b*xm; return {a,b}; }
+
+  // --- CoinGecko fetch ---
+  async function fetchCoinHistory(coinId, days){
+    const url = `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${days}&interval=daily`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error(`CoinGecko error ${res.status}`);
+    const data = await res.json();
+    const prices = data.prices.map(p=>Number(p[1]));
+    const labels = data.prices.map(p=> new Date(p[0]).toISOString().slice(0,10));
+    return {labels, prices};
+  }
+
+  async function handleFetch(){
+    setIsLoading(true); setAlertMsg('');
+    try{
+      const newStore = {...dataStore};
+      for(const coin of selected){
+        const res = await fetchCoinHistory(coin, days);
+        newStore[coin] = res;
+      }
+      setDataStore(newStore);
+      computeAllMetrics(newStore);
+    } catch(err){ console.error(err); setAlertMsg('擷取失敗：'+err.message); }
+    setIsLoading(false);
+  }
+
+  function computeAllMetrics(store){
+    const all = {};
+    for(const coin of Object.keys(store)){
+      const {labels, prices} = store[coin];
+      const logR = computeLogReturns(prices);
+      const vol = std(logR) * Math.sqrt(365);
+      const mdd = maxDrawdown(prices);
+      const retPct = logR.map(v=>Math.exp(v)-1);
+      const var95 = -percentile(retPct,5);
+      const sr = sharpeRatio(logR, 0);
+      all[coin] = { lastPrice: prices[prices.length-1], vol, mdd, var95, sr, labels, prices };
+    }
+    setMetrics(all);
+    // simple alert rule
+    for(const c of Object.keys(all)){
+      if(all[c].var95 > 0.08){ setAlertMsg(`警示：${c} 1 日歷史 VaR(95%) > 8%`); return; }
+    }
+    setAlertMsg('');
+  }
+
+  // --- forecasting ---
+  function forecastFor(prices, methodName, fwd){
+    if(methodName==='naive') return new Array(fwd).fill(prices[prices.length-1]);
+    if(methodName==='sma'){ const sma = SMA(prices, Math.min(14, prices.length)); const last = sma[sma.length-1] || prices[prices.length-1]; return new Array(fwd).fill(last);} 
+    if(methodName==='ema'){ const ema = EMA(prices, Math.min(14, prices.length)); const last=ema[ema.length-1]; return new Array(fwd).fill(last); }
+    // linreg using day index
+    const x = prices.map((p,i)=>i);
+    const y = prices;
+    const lr = linearRegression(x,y);
+    const preds = [];
+    for(let i=1;i<=fwd;i++){ preds.push(lr.a + lr.b*(y.length-1+i)); }
+    return preds;
+  }
+
+  function buildChartData(){
+    // combine multiple coins into one timeline (aligned by index) — use labels of first coin
+    const coins = Object.keys(dataStore);
+    if(coins.length===0) return null;
+    const baseline = dataStore[coins[0]];
+    const labels = baseline.labels.slice();
+    const datasets = coins.map((c,idx)=>({
+      label: AVAILABLE.find(a=>a.id===c)?.label||c,
+      data: dataStore[c].prices,
+      tension: 0.12,
+      borderWidth:2,
+      pointRadius:0
+    }));
+    // add forecasts as dashed lines
+    for(const c of coins){ const preds = forecastFor(dataStore[c].prices, method, forecastDays); const predLabels = [];
+      for(let i=1;i<=forecastDays;i++){ const d = new Date( new Date(labels[labels.length-1]).getTime() + i*24*3600*1000 ); predLabels.push(d.toISOString().slice(0,10)); }
+      // append nulls for history then preds
+      datasets.push({ label: `${c} 預測 (${method})`, data: new Array(labels.length).fill(null).concat(preds), borderDash:[6,4], tension:0.12, borderWidth:2, pointRadius:2 });
+      // extend labels to include prediction labels (only once)
+      for(const pl of predLabels) if(!labels.includes(pl)) labels.push(pl);
+    }
+    return { labels, datasets };
+  }
+
+  function downloadCSV(){
+    const coins = Object.keys(dataStore); if(coins.length===0){ alert('請先擷取資料'); return; }
+    let rows = [['coin','date','price','type']];
+    for(const c of coins){ const {labels, prices} = dataStore[c]; for(let i=0;i<labels.length;i++) rows.push([c, labels[i], prices[i].toFixed(6), 'history']); const preds = forecastFor(prices, method, forecastDays); for(let i=0;i<preds.length;i++){ const d = new Date(new Date(labels[labels.length-1]).getTime() + (i+1)*24*3600*1000); rows.push([c, d.toISOString().slice(0,10), preds[i].toFixed(6), 'forecast']); } }
+    const csv = rows.map(r=>r.join(',')).join('\n'); const blob = new Blob([csv],{type:'text/csv'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='crypto_history_forecast.csv'; a.click(); URL.revokeObjectURL(url);
+  }
+
+  // CSV upload (expect date,price columns) — simple parser
+  function handleUpload(e){ const f = e.target.files[0]; if(!f) return; const reader = new FileReader(); reader.onload = (ev)=>{
+      const txt = ev.target.result; const lines = txt.split(/\r?\n/).map(l=>l.trim()).filter(l=>l); const rows = lines.map(l=>l.split(',')); // naive
+      // expect header
+      const header = rows[0].map(h=>h.toLowerCase()); const dateIdx = header.indexOf('date'); const priceIdx = header.indexOf('price')>=0?header.indexOf('price'):header.indexOf('price_usd'); if(dateIdx<0 || priceIdx<0){ alert('CSV 需包含 header: date,price (或 price_usd)'); return; }
+      const labels = []; const prices = [];
+      for(let i=1;i<rows.length;i++){ const r = rows[i]; labels.push(r[dateIdx]); prices.push(Number(r[priceIdx])); }
+      // add as custom coin
+      const key = 'custom_'+Date.now(); const newStore = {...dataStore}; newStore[key] = { labels, prices }; setDataStore(newStore); computeAllMetrics(newStore);
+    }; reader.readAsText(f);
+  }
+
+  // auto poll
+  useEffect(()=>{
+    if(autoPoll){ pollRef.current = setInterval(()=>{ if(selected.length>0) handleFetch(); }, 60*1000); return ()=>clearInterval(pollRef.current); } else { if(pollRef.current) clearInterval(pollRef.current); }
+  },[autoPoll, selected, days]);
+
+  // UI
+  const chartData = buildChartData();
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-6xl mx-auto">
+        <header className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-sky-500 to-violet-600"></div>
+          <div>
+            <h1 className="text-2xl font-semibold">虛擬貨幣價格預測與風險預測（進階版）</h1>
+            <p className="text-sm text-gray-600">整合多幣別比較、SMA/EMA/線性回歸預測、風險指標、CSV 上傳/匯出與自動輪詢。</p>
+          </div>
+        </header>
+
+        <section className="bg-white rounded-xl shadow mt-6 p-4">
+          <div className="grid md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">選擇幣別（可複選）</label>
+              <select multiple value={selected} onChange={(e)=>setSelected(Array.from(e.target.selectedOptions).map(o=>o.value))} className="mt-1 block w-full rounded-md border-gray-200 p-2">
+                {AVAILABLE.map(a=> <option key={a.id} value={a.id}>{a.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">歷史天數</label>
+              <input type="number" value={days} min={7} max={1095} onChange={e=>setDays(Number(e.target.value))} className="mt-1 block w-full rounded-md border-gray-200 p-2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">預測天數</label>
+              <input type="number" value={forecastDays} min={1} max={90} onChange={e=>setForecastDays(Number(e.target.value))} className="mt-1 block w-full rounded-md border-gray-200 p-2" />
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-4 items-center">
+            <select value={method} onChange={e=>setMethod(e.target.value)} className="rounded-md border-gray-200 p-2">
+              <option value="linreg">線性回歸 (示範)</option>
+              <option value="naive">Naive (最後價格)</option>
+              <option value="sma">SMA (簡單移動平均)</option>
+              <option value="ema">EMA (指數移動平均)</option>
+            </select>
+            <button onClick={handleFetch} className="bg-sky-600 text-white px-4 py-2 rounded-md">擷取並預測</button>
+            <button onClick={()=>{ setDataStore({}); setMetrics({}); setAlertMsg(''); }} className="px-4 py-2 border rounded-md">清除</button>
+
+            <label className="ml-4 flex items-center gap-2 text-sm"><input type="checkbox" checked={autoPoll} onChange={e=>setAutoPoll(e.target.checked)} /> 自動每分鐘更新</label>
+
+            <div className="ml-auto flex gap-2">
+              <input type="file" accept=".csv" onChange={handleUpload} className="text-sm" />
+              <button onClick={downloadCSV} className="px-3 py-2 border rounded-md">匯出 CSV</button>
+            </div>
+          </div>
+
+          {alertMsg && <div className="mt-3 p-2 bg-yellow-100 text-yellow-800 rounded-md">{alertMsg}</div>}
+
+        </section>
+
+        <section className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 bg-white rounded-xl shadow p-4">
+            <h3 className="font-semibold mb-3">價格走勢 & 預測</h3>
+            {chartData ? (
+              <Line data={{labels: chartData.labels, datasets: chartData.datasets}} />
+            ) : (
+              <div className="text-gray-500">尚未有資料，請先擷取。</div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl shadow p-4">
+            <h3 className="font-semibold mb-3">風險指標（最新）</h3>
+            <div className="space-y-3">
+              {Object.keys(metrics).length===0 && <div className="text-gray-500">尚無資料</div>}
+              {Object.entries(metrics).map(([coin, m])=> (
+                <div key={coin} className="border rounded-md p-2">
+                  <div className="flex justify-between"><div className="font-medium">{coin}</div><div className="text-sm text-gray-500">最新 {m.lastPrice?.toFixed(2)} USD</div></div>
+                  <div className="text-sm text-gray-600 mt-1">波動率 (年化)：{(m.vol*100).toFixed(2)}%</div>
+                  <div className="text-sm text-gray-600">最大回撤：{(m.mdd*100).toFixed(2)}%</div>
+                  <div className="text-sm text-gray-600">Sharpe (年化)：{m.sr.toFixed(2)}</div>
+                  <div className="text-sm text-gray-600">VaR 95% (1日)：{(m.var95*100).toFixed(2)}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6 bg-white rounded-xl shadow p-4">
+          <h3 className="font-semibold mb-3">每日報酬直方圖（單幣）</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Object.keys(dataStore).map(coin=>{
+              const prices = dataStore[coin].prices; const labels = dataStore[coin].labels; const logR = computeLogReturns(prices); const ret = logR.map(v=>Math.exp(v)-1);
+              const histLabels = Array.from({length:20},(_,i)=>i);
+              const bins = new Array(20).fill(0); if(ret.length>0){ const min = Math.min(...ret); const max = Math.max(...ret); for(const r of ret){ const idx = Math.min(19, Math.floor( (r - min) / (max - min + 1e-9) * 20 )); bins[idx]++; } }
+              return (
+                <div key={coin} className="p-2 border rounded-md">
+                  <div className="font-medium mb-2">{coin}</div>
+                  <Bar data={{ labels: histLabels, datasets:[{ label: '頻數', data: bins }] }} />
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <footer className="mt-6 text-sm text-gray-500">此應用為示範用途，預測模型相當簡化。實務上請以更嚴謹的資料前處理、模型訓練、交叉驗證與風控規則為基礎。若要我加入：TensorFlow.js、ARIMA、或連到 Binance WebSocket 做即時行情，我可以直接把程式碼寫進來。</footer>
+      </div>
+    </div>
+  );
+}
